@@ -10,10 +10,8 @@ const PHP_SERVICE_URL = 'http://localhost:5002/rpc';
 app.use(cors());
 app.use(express.json());
 
-// In-Memory Job Store untuk Async Orders
 const jobs = {};
 
-// In-Memory Mock Fallback (jika service belum berjalan saat pengujian)
 const mockProduk = [
     { id: 1, nama: "Kopi", harga: 15000, stok: 50 },
     { id: 2, nama: "Teh", harga: 10000, stok: 80 },
@@ -21,7 +19,6 @@ const mockProduk = [
 ];
 const mockOrders = [];
 
-// Helper mengirim request JSON-RPC 2.0 ke Backend Service
 async function callRpc(url, method, params = {}, id = 1) {
     const payload = { jsonrpc: "2.0", method, params, id };
     const response = await fetch(url, {
@@ -32,22 +29,17 @@ async function callRpc(url, method, params = {}, id = 1) {
     return await response.json();
 }
 
-// Terjemahkan error JSON-RPC 2.0 ke HTTP Status Code wajar (400, 404, 409)
 function sendRpcErrorAsHttp(res, rpcError) {
     const code = rpcError?.code;
     let status = 400;
 
     if (code === -32601) {
-        status = 404; // Method not found
+        status = 404;
     } else if (code === -32602) {
         const msg = (rpcError?.message || '').toLowerCase();
-        if (msg.includes('tidak ada') || msg.includes('tidak ditemukan')) {
-            status = 404; // Item / ID not found
-        } else {
-            status = 400; // Invalid params
-        }
+        status = (msg.includes('tidak ada') || msg.includes('tidak ditemukan')) ? 404 : 400;
     } else if (code === -32000) {
-        status = 409; // Conflict (Stok tidak cukup)
+        status = 409;
     }
 
     return res.status(status).json(rpcError);
@@ -60,7 +52,6 @@ app.get('/api/produk', async (req, res) => {
         if (rpcRes.error) return sendRpcErrorAsHttp(res, rpcRes.error);
         return res.json(rpcRes.result);
     } catch (err) {
-        // Fallback mock bila Service Produk belum aktif
         return res.json(mockProduk);
     }
 });
@@ -73,28 +64,48 @@ app.get('/api/produk/:id', async (req, res) => {
         if (rpcRes.error) return sendRpcErrorAsHttp(res, rpcRes.error);
         return res.json(rpcRes.result);
     } catch (err) {
-        // Fallback mock
         const item = mockProduk.find(p => p.id === prodId);
-        if (!item) {
-            return res.status(404).json({ code: -32602, message: "Produk tidak ditemukan" });
-        }
+        if (!item) return res.status(404).json({ code: -32602, message: "Produk tidak ditemukan" });
         return res.json(item);
     }
 });
 
-// 3. GET /api/order
+// 3. GET /api/produk/rekomendasi/:id (Machine Learning - Cosine Similarity)
+app.get('/api/produk/rekomendasi/:id', async (req, res) => {
+    try {
+        const prodId = parseInt(req.params.id, 10);
+        const rpcRes = await callRpc(PYTHON_SERVICE_URL, 'rekomendasiProduk', { id: prodId });
+        if (rpcRes.error) return sendRpcErrorAsHttp(res, rpcRes.error);
+        return res.json(rpcRes.result);
+    } catch (err) {
+        return res.status(500).json({ error: 'Gagal memproses ML Rekomendasi' });
+    }
+});
+
+// 4. POST /api/produk/prediksi-diskon (Machine Learning - Linear Regression)
+app.post('/api/produk/prediksi-diskon', async (req, res) => {
+    try {
+        const { jumlah } = req.body;
+        const rpcRes = await callRpc(PYTHON_SERVICE_URL, 'prediksiDiskon', { jumlah: parseInt(jumlah, 10) });
+        if (rpcRes.error) return sendRpcErrorAsHttp(res, rpcRes.error);
+        return res.json(rpcRes.result);
+    } catch (err) {
+        return res.status(500).json({ error: 'Gagal memproses ML Prediksi Diskon' });
+    }
+});
+
+// 5. GET /api/order
 app.get('/api/order', async (req, res) => {
     try {
         const rpcRes = await callRpc(PHP_SERVICE_URL, 'listOrder');
         if (rpcRes.error) return sendRpcErrorAsHttp(res, rpcRes.error);
         return res.json(rpcRes.result);
     } catch (err) {
-        // Fallback mock
         return res.json(mockOrders);
     }
 });
 
-// 4. POST /api/order (Direct Order)
+// 6. POST /api/order (Direct Order)
 app.post('/api/order', async (req, res) => {
     const { id_produk, jumlah } = req.body;
     try {
@@ -105,7 +116,6 @@ app.post('/api/order', async (req, res) => {
         if (rpcRes.error) return sendRpcErrorAsHttp(res, rpcRes.error);
         return res.json(rpcRes.result);
     } catch (err) {
-        // Fallback mock
         const prod = mockProduk.find(p => p.id === parseInt(id_produk, 10));
         if (!prod) return res.status(404).json({ code: -32602, message: "Produk tidak ditemukan" });
         if (prod.stok < jumlah) return res.status(409).json({ code: -32000, message: "stok tidak cukup" });
@@ -117,7 +127,7 @@ app.post('/api/order', async (req, res) => {
     }
 });
 
-// 5. POST /api/order/sync (Memanggil buatOrderSync & MENUNGGU hasilnya)
+// 7. POST /api/order/sync
 app.post('/api/order/sync', async (req, res) => {
     const { id_produk, jumlah } = req.body;
     try {
@@ -128,8 +138,7 @@ app.post('/api/order/sync', async (req, res) => {
         if (rpcRes.error) return sendRpcErrorAsHttp(res, rpcRes.error);
         return res.json(rpcRes.result);
     } catch (err) {
-        // Fallback mock
-        await new Promise(r => setTimeout(r, 200)); // Delay 200ms
+        await new Promise(r => setTimeout(r, 200));
         const prod = mockProduk.find(p => p.id === parseInt(id_produk, 10));
         if (!prod) return res.status(404).json({ code: -32602, message: "Produk tidak ditemukan" });
         if (prod.stok < jumlah) return res.status(409).json({ code: -32000, message: "stok tidak cukup" });
@@ -141,26 +150,15 @@ app.post('/api/order/sync', async (req, res) => {
     }
 });
 
-// 6. POST /api/order/async (Langsung membalas 202 {"jobId":"..."}, diproses di background)
+// 8. POST /api/order/async
 app.post('/api/order/async', (req, res) => {
     const { id_produk, jumlah } = req.body;
     const jobId = 'job_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
 
-    // Simpan status job di memori (pending, done, error)
-    jobs[jobId] = {
-        jobId,
-        status: 'pending',
-        createdAt: new Date().toISOString()
-    };
+    jobs[jobId] = { jobId, status: 'pending', createdAt: new Date().toISOString() };
 
-    // Respon cepat 202 Accepted
-    res.status(202).json({
-        jobId,
-        status: 'pending',
-        message: 'Order sedang diproses di latar belakang'
-    });
+    res.status(202).json({ jobId, status: 'pending', message: 'Order sedang diproses di latar belakang' });
 
-    // Jalankan eksekusi async di background
     (async () => {
         try {
             const rpcRes = await callRpc(PHP_SERVICE_URL, 'buatOrderSync', {
@@ -170,23 +168,11 @@ app.post('/api/order/async', (req, res) => {
 
             if (rpcRes.error) {
                 const httpCode = rpcRes.error?.code === -32000 ? 409 : (rpcRes.error?.code === -32602 ? 404 : 400);
-                jobs[jobId] = {
-                    jobId,
-                    status: 'error',
-                    httpStatus: httpCode,
-                    error: rpcRes.error,
-                    updatedAt: new Date().toISOString()
-                };
+                jobs[jobId] = { jobId, status: 'error', httpStatus: httpCode, error: rpcRes.error };
             } else {
-                jobs[jobId] = {
-                    jobId,
-                    status: 'done',
-                    result: rpcRes.result,
-                    updatedAt: new Date().toISOString()
-                };
+                jobs[jobId] = { jobId, status: 'done', result: rpcRes.result };
             }
         } catch (err) {
-            // Fallback mock jika service down
             await new Promise(r => setTimeout(r, 200));
             const prod = mockProduk.find(p => p.id === parseInt(id_produk, 10));
             if (!prod) {
@@ -203,16 +189,11 @@ app.post('/api/order/async', (req, res) => {
     })();
 });
 
-// 7. GET /api/order/status/:jobId -> Cek status pekerjaan async (pending, done, error)
+// 9. GET /api/order/status/:jobId
 app.get('/api/order/status/:jobId', (req, res) => {
-    const { jobId } = req.params;
-    const job = jobs[jobId];
-
-    if (!job) {
-        return res.status(404).json({ error: 'Job ID tidak ditemukan' });
-    }
-
-    res.json(job);
+    const job = jobs[req.params.jobId];
+    if (!job) return res.status(404).json({ error: 'Job ID tidak ditemukan' });
+    return res.json(job);
 });
 
 app.listen(PORT, () => {

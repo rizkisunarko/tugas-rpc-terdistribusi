@@ -1,8 +1,11 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.linear_model import LinearRegression
 
-app = FastAPI(title="Service Produk (Python JSON-RPC)")
+app = FastAPI(title="Service Produk (Python JSON-RPC + ML)")
 
 app.add_middleware(
     CORSMiddleware,
@@ -12,12 +15,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory database produk sesuai spesifikasi
+# In-memory database produk
 produk_db = [
-    {"id": 1, "nama": "Kopi", "harga": 15000, "stok": 50},
-    {"id": 2, "nama": "Teh", "harga": 10000, "stok": 80},
-    {"id": 3, "nama": "Susu", "harga": 12000, "stok": 30}
+    {"id": 1, "nama": "Kopi", "harga": 15000, "stok": 50, "kategori": "minuman_hangat", "kategori_vec": [1, 0, 15000]},
+    {"id": 2, "nama": "Teh", "harga": 10000, "stok": 80, "kategori": "minuman_hangat", "kategori_vec": [1, 0, 10000]},
+    {"id": 3, "nama": "Susu", "harga": 12000, "stok": 30, "kategori": "minuman_dingin", "kategori_vec": [0, 1, 12000]}
 ]
+
+# Machine Learning Model 1: Training Model Linear Regression untuk Prediksi Diskon Otomatis
+# X = [Jumlah Beli], y = [Persentase Diskon %]
+X_train = np.array([[1], [3], [5], [10], [20], [50]])
+y_train = np.array([0, 2, 5, 10, 15, 25])
+ml_diskon_model = LinearRegression()
+ml_diskon_model.fit(X_train, y_train)
 
 def make_jsonrpc_response(result=None, error=None, req_id=None):
     response = {"jsonrpc": "2.0", "id": req_id}
@@ -42,7 +52,6 @@ async def rpc_handler(request: Request):
     params = body.get("params", {})
     req_id = body.get("id")
 
-    # Validasi request JSON-RPC 2.0
     if jsonrpc != "2.0" or not method:
         return make_jsonrpc_response(
             error={"code": -32600, "message": "Invalid Request format"},
@@ -60,58 +69,89 @@ async def rpc_handler(request: Request):
                 error={"code": -32602, "message": "params salah/tidak ditemukan (butuh 'id')"},
                 req_id=req_id
             )
-        
-        try:
-            prod_id = int(params["id"])
-        except ValueError:
-            return make_jsonrpc_response(
-                error={"code": -32602, "message": "params 'id' harus angka"},
-                req_id=req_id
-            )
-
+        prod_id = int(params["id"])
         produk = next((p for p in produk_db if p["id"] == prod_id), None)
         if not produk:
             return make_jsonrpc_response(
                 error={"code": -32602, "message": "params salah/tidak ditemukan (Produk ID tidak ada)"},
                 req_id=req_id
             )
-
         return make_jsonrpc_response(result=produk, req_id=req_id)
 
-    # Method 3: kurangiStok (Helper internal RPC untuk pemesanan)
+    # Method 3: kurangiStok
     elif method == "kurangiStok":
         if not isinstance(params, dict) or "id" not in params or "jumlah" not in params:
             return make_jsonrpc_response(
                 error={"code": -32602, "message": "params salah/tidak ditemukan"},
                 req_id=req_id
             )
-        
-        try:
-            prod_id = int(params["id"])
-            jumlah = int(params["jumlah"])
-        except ValueError:
-            return make_jsonrpc_response(
-                error={"code": -32602, "message": "params 'id' dan 'jumlah' harus berupa angka"},
-                req_id=req_id
-            )
-
+        prod_id = int(params["id"])
+        jumlah = int(params["jumlah"])
         produk = next((p for p in produk_db if p["id"] == prod_id), None)
         if not produk:
             return make_jsonrpc_response(
                 error={"code": -32602, "message": "params salah/tidak ditemukan (Produk ID tidak ada)"},
                 req_id=req_id
             )
-
         if produk["stok"] < jumlah:
             return make_jsonrpc_response(
                 error={"code": -32000, "message": "stok tidak cukup"},
                 req_id=req_id
             )
-
         produk["stok"] -= jumlah
         return make_jsonrpc_response(result=produk, req_id=req_id)
 
-    # Method tidak dikenal
+    # Method 4 (ML): rekomendasiProduk (Cosine Similarity)
+    elif method == "rekomendasiProduk":
+        if not isinstance(params, dict) or "id" not in params:
+            return make_jsonrpc_response(
+                error={"code": -32602, "message": "params 'id' dibutuhkan"},
+                req_id=req_id
+            )
+        prod_id = int(params["id"])
+        target_prod = next((p for p in produk_db if p["id"] == prod_id), None)
+        if not target_prod:
+            return make_jsonrpc_response(
+                error={"code": -32602, "message": "Produk tidak ditemukan"},
+                req_id=req_id
+            )
+
+        # Hitung Cosine Similarity antar vektor fitur produk
+        features = np.array([p["kategori_vec"] for p in produk_db])
+        target_vec = np.array([target_prod["kategori_vec"]])
+        sim_scores = cosine_similarity(target_vec, features)[0]
+
+        # Ambil produk teratas selain produk itu sendiri
+        rekomendasi = []
+        for idx, score in enumerate(sim_scores):
+            if produk_db[idx]["id"] != prod_id:
+                rekomendasi.append({
+                    "id": produk_db[idx]["id"],
+                    "nama": produk_db[idx]["nama"],
+                    "harga": produk_db[idx]["harga"],
+                    "similarity_score": round(float(score), 4)
+                })
+
+        rekomendasi.sort(key=lambda x: x["similarity_score"], reverse=True)
+        return make_jsonrpc_response(result={
+            "produk_asal": target_prod["nama"],
+            "metode_ml": "Cosine Similarity (Content-Based Filtering)",
+            "rekomendasi": rekomendasi
+        }, req_id=req_id)
+
+    # Method 5 (ML): prediksiDiskon (Linear Regression)
+    elif method == "prediksiDiskon":
+        jumlah = int(params.get("jumlah", 1))
+        # Prediksi diskon persentase menggunakan model Linear Regression
+        pred_diskon = ml_diskon_model.predict(np.array([[jumlah]]))[0]
+        diskon_persen = max(0, min(30, round(float(pred_diskon), 2))) # Limit max 30%
+
+        return make_jsonrpc_response(result={
+            "jumlah_beli": jumlah,
+            "metode_ml": "Linear Regression (Estimasi Diskon Dinamis)",
+            "diskon_persen": diskon_persen
+        }, req_id=req_id)
+
     else:
         return make_jsonrpc_response(
             error={"code": -32601, "message": "method tidak ada"},
