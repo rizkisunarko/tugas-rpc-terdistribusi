@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toko Online Mini - Web 2 Monolit Django</title>
+  <style>
+    :root {
+      --bg-color: #0b0f19;
+      --panel-bg: rgba(22, 30, 49, 0.75);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --primary: #6366f1;
+      --accent-cyan: #06b6d4;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-family);
+      padding: 2rem 1.5rem;
+      min-height: 100vh;
+    }
+
+    .container { max-width: 1000px; margin: 0 auto; }
+
+    header { text-align: center; margin-bottom: 2rem; }
+    header h1 { font-size: 2rem; color: #a5b4fc; margin-bottom: 0.5rem; }
+    header p { color: var(--text-muted); }
+
+    .arch-badge {
+      display: inline-block; margin-top: 0.5rem; padding: 0.3rem 0.8rem;
+      background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 999px; font-size: 0.85rem; color: #34d399;
+    }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--panel-bg); border: 1px solid var(--panel-border);
+      border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;
+    }
+
+    .card h3 { font-size: 1.2rem; margin-bottom: 1rem; color: #f3f4f6; }
+
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 0.75rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem; }
+    th { color: var(--text-muted); text-transform: uppercase; font-size: 0.75rem; }
+
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+    select, input {
+      width: 100%; padding: 0.65rem 0.8rem; background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; color: var(--text-main);
+    }
+
+    .btn-group { display: flex; gap: 0.75rem; margin-top: 1rem; }
+    .btn {
+      padding: 0.65rem 1rem; border: none; border-radius: 8px; font-weight: 600;
+      font-size: 0.85rem; cursor: pointer; transition: opacity 0.2s;
+    }
+    .btn-sync { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
+    .btn-async { background: rgba(6, 182, 212, 0.2); color: #38bdf8; border: 1px solid rgba(6, 182, 212, 0.4); }
+    .btn:hover { opacity: 0.85; }
+
+    .alert { padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; margin-top: 1rem; }
+    .alert-error { background: rgba(244, 63, 94, 0.15); color: #fda4af; border: 1px solid rgba(244, 63, 94, 0.3); }
+    .alert-success { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .alert-info { background: rgba(6, 182, 212, 0.15); color: #7dd3fc; border: 1px solid rgba(6, 182, 212, 0.3); }
+
+    .code-block { font-family: monospace; font-size: 0.8rem; background: rgba(0,0,0,0.4); padding: 0.5rem; border-radius: 6px; margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Toko Online Mini</h1>
+      <p>Arsitektur Web 2: Monolit (Django Python — Port 8001)</p>
+      <div class="arch-badge">Django Single Server (No RPC)</div>
+    </header>
+
+    <div class="grid-2">
+      <!-- Tabel Produk -->
+      <div class="card">
+        <h3>Daftar Produk</h3>
+        <table>
+          <thead>
+            <tr><th>ID</th><th>Nama</th><th>Harga</th><th>Stok</th></tr>
+          </thead>
+          <tbody id="produk-table">
+            {% for p in produk_list %}
+            <tr>
+              <td>#{{ p.id }}</td>
+              <td style="font-weight:600">{{ p.nama }}</td>
+              <td style="color:#06b6d4">Rp {{ p.harga }}</td>
+              <td>{{ p.stok }} unit</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Form Order -->
+      <div class="card">
+        <h3>Form Order Baru</h3>
+        <div class="form-group">
+          <label for="select-produk">Pilih Produk:</label>
+          <select id="select-produk">
+            {% for p in produk_list %}
+            <option value="{{ p.id }}">{{ p.nama }} - Rp {{ p.harga }} (Stok: {{ p.stok }})</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="input-jumlah">Jumlah:</label>
+          <input id="input-jumlah" type="number" min="1" value="1">
+        </div>
+
+        <div class="btn-group">
+          <button id="btn-sync" class="btn btn-sync" onclick="handleOrderSync()">Order Sync (200ms)</button>
+          <button id="btn-async" class="btn btn-async" onclick="handleOrderAsync()">Order Async (202)</button>
+        </div>
+
+        <div id="status-box"></div>
+        <div id="job-box"></div>
+      </div>
+    </div>
+
+    <!-- Tabel Riwayat Order -->
+    <div class="card">
+      <h3>Riwayat Order</h3>
+      <table>
+        <thead>
+          <tr><th>Order ID</th><th>ID Produk</th><th>Jumlah</th><th>Total Harga</th></tr>
+        </thead>
+        <tbody id="order-table">
+          {% for o in order_list %}
+          <tr>
+            <td>#{{ o.id }}</td>
+            <td>Produk ID {{ o.id_produk }}</td>
+            <td>{{ o.jumlah }} item</td>
+            <td style="font-weight:600; color:#06b6d4">Rp {{ o.total }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colSpan="4" style="text-align:center; color:#9ca3af">Belum ada order.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    async function refreshData() {
+      const resP = await fetch('/api/produk');
+      const produk = await resP.json();
+      const tbodyP = document.getElementById('produk-table');
+      const selectP = document.getElementById('select-produk');
+      tbodyP.innerHTML = produk.map(p => `
+        <tr>
+          <td>#${p.id}</td>
+          <td style="font-weight:600">${p.nama}</td>
+          <td style="color:#06b6d4">Rp ${p.harga.toLocaleString()}</td>
+          <td>${p.stok} unit</td>
+        </tr>
+      `).join('');
+
+      selectP.innerHTML = produk.map(p => `
+        <option value="${p.id}">${p.nama} - Rp ${p.harga.toLocaleString()} (Stok: ${p.stok})</option>
+      `).join('');
+
+      const resO = await fetch('/api/order');
+      const orders = await resO.json();
+      const tbodyO = document.getElementById('order-table');
+      if (orders.length === 0) {
+        tbodyO.innerHTML = '<tr><td colSpan="4" style="text-align:center; color:#9ca3af">Belum ada order.</td></tr>';
+      } else {
+        tbodyO.innerHTML = orders.map(o => `
+          <tr>
+            <td>#${o.id}</td>
+            <td>Produk ID ${o.id_produk}</td>
+            <td>${o.jumlah} item</td>
+            <td style="font-weight:600; color:#06b6d4">Rp ${o.total.toLocaleString()}</td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    async function handleOrderSync() {
+      const id_produk = parseInt(document.getElementById('select-produk').value, 10);
+      const jumlah = parseInt(document.getElementById('input-jumlah').value, 10);
+      const statusBox = document.getElementById('status-box');
+
+      statusBox.innerHTML = '<div class="alert alert-info">Mengirim Order Sync (menunggu delay 200ms)...</div>';
+
+      const res = await fetch('/api/order/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_produk, jumlah })
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        statusBox.innerHTML = `<div class="alert alert-success">Order Sync Sukses! ID: #${data.id}, Total: Rp ${data.total.toLocaleString()}</div>`;
+        refreshData();
+      } else {
+        statusBox.innerHTML = `<div class="alert alert-error">Error ${res.status}: ${data.message || 'Gagal order'}</div>`;
+      }
+    }
+
+    async function handleOrderAsync() {
+      const id_produk = parseInt(document.getElementById('select-produk').value, 10);
+      const jumlah = parseInt(document.getElementById('input-jumlah').value, 10);
+      const statusBox = document.getElementById('status-box');
+      const jobBox = document.getElementById('job-box');
+
+      statusBox.innerHTML = '<div class="alert alert-info">Mengirim Order Async...</div>';
+
+      const res = await fetch('/api/order/async', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_produk, jumlah })
+      });
+      const data = await res.json();
+
+      if (res.status === 202) {
+        statusBox.innerHTML = `<div class="alert alert-info">Job Accepted 202 (${data.jobId}). Polling status...</div>`;
+        jobBox.innerHTML = `<div class="code-block">${JSON.stringify(data, null, 2)}</div>`;
+        
+        const interval = setInterval(async () => {
+          const resJ = await fetch(`/api/order/status/${data.jobId}`);
+          const jobData = await resJ.json();
+          jobBox.innerHTML = `<div class="code-block">${JSON.stringify(jobData, null, 2)}</div>`;
+
+          if (jobData.status === 'done') {
+            clearInterval(interval);
+            statusBox.innerHTML = `<div class="alert alert-success">Async Job Selesai! ID: #${jobData.result.id}</div>`;
+            refreshData();
+          } else if (jobData.status === 'error') {
+            clearInterval(interval);
+            statusBox.innerHTML = `<div class="alert alert-error">Async Job Gagal: ${jobData.error?.message}</div>`;
+          }
+        }, 500);
+      } else {
+        statusBox.innerHTML = `<div class="alert alert-error">Error ${res.status}: ${data.message || 'Gagal'}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>

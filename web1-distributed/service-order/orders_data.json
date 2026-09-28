@@ -1,0 +1,14 @@
+[
+    {
+        "id": 1,
+        "id_produk": 1,
+        "jumlah": 2,
+        "total": 30000
+    },
+    {
+        "id": 2,
+        "id_produk": 2,
+        "jumlah": 3,
+        "total": 30000
+    }
+]
