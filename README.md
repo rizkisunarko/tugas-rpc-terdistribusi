@@ -1,6 +1,31 @@
-# Toko Online Mini — Tugas Sistem Terdistribusi
+# Toko Online Mini — Tugas Mata Kuliah Sistem Terdistribusi
 
-Proyek ini dibuat untuk pengujian perbandingan kinerja dan arsitektur sistem terdistribusi antara **Arsitektur Web 1 (Multi-Platform Kernel berbasis JSON-RPC 2.0)** dan **Arsitektur Web 2 (Monolit Django)**.
+Proyek ini dibuat untuk memenuhi tugas **Mata Kuliah Sistem Terdistribusi** yang menguji dan membandingkan kinerja serta arsitektur antara **Arsitektur Web 1 (Multi-Platform Kernel berbasis JSON-RPC 2.0 + Machine Learning)** dan **Arsitektur Web 2 (Monolit Django + Machine Learning)**.
+
+---
+
+## 👥 Anggota Kelompok
+
+| No | Nama Mahasiswa | NIM | Peran / Pembagian Tugas |
+| :-: | :--- | :--- | :--- |
+| 1 | [Rizki Pratama Sunarko] | [240411100181] | Gateway Node.js & React UI |
+| 2 | [Mohammad Andri Firmansyah] | [240411100139] | Service Produk Python + Machine Learning |
+| 3 | [Abyan Naufal Yunianto] | [240411100178] | Service Order PHP Polos |
+| 4 | [Dien Latif Asyari] | [240411100038] | Web 2 Django Monolith & Uji JMeter |
+
+---
+
+## 🤖 Metode Machine Learning (ML) yang Digunakan
+
+Proyek ini mengintegrasikan 2 fitur berbasis **Machine Learning (ML)** pada kedua arsitektur web:
+
+### 1. **Linear Regression (Metode Regresi — Supervised Learning)**
+- **Kegunaan:** Fitur **Prediksi Diskon Dinamis** (`POST /api/produk/prediksi-diskon`).
+- **Penjelasan:** Memprediksi nilai kontinu berupa persentase diskon dinamis ($y$) berdasarkan variabel input kuantitas barang yang dibeli ($x$). Model ini dilatih menggunakan `sklearn.linear_model.LinearRegression`.
+
+### 2. **Cosine Similarity (Similarity Metric — Content-Based Recommendation)**
+- **Kegunaan:** Fitur **Sistem Rekomendasi Produk Serupa** (`GET /api/produk/rekomendasi/:id`).
+- **Penjelasan:** Menghitung sudut kemiripan (*distance metric*) antar-vektor atribut fitur produk (kategori & rentang harga) menggunakan `sklearn.metrics.pairwise.cosine_similarity` untuk menyajikan rekomendasi produk yang paling relevan.
 
 ---
 
@@ -20,20 +45,20 @@ tugas-rpc-terdistribusi/
 │   ├── gateway/                     # API Gateway (Node.js Express - Port 8000)
 │   │   ├── server.js                # Translasi REST -> JSON-RPC 2.0 & Async Job Tracker
 │   │   └── package.json
-│   ├── service-produk/              # Service Produk (Python + FastAPI - Port 5001)
-│   │   ├── main.py                  # Handler JSON-RPC 2.0 (/rpc) & Produk In-Memory
+│   ├── service-produk/              # Service Produk (Python + FastAPI + ML - Port 5001)
+│   │   ├── main.py                  # Handler JSON-RPC 2.0 (/rpc) & Model ML (Linear Regression & Cosine Similarity)
 │   │   └── requirements.txt
 │   └── service-order/               # Service Order (PHP Polos - Port 5002)
 │       └── index.php                # Handler JSON-RPC 2.0 (/rpc) & Persistensi JSON
 │
-├── web2-monolith/                   # ARSITEKTUR WEB 2 (Monolit Django - Port 8001)
+├── web2-monolith/                   # ARSITEKTUR WEB 2 (Monolit Django + ML - Port 8001)
 │   ├── manage.py
 │   ├── templates/
 │   │   └── index.html               # UI Django HTML Template
 │   └── monolith/
 │       ├── settings.py              # Konfigurasi Django
 │       ├── urls.py                  # Routing API & View
-│       └── views.py                 # Logika Monolit Produk & Order In-Memory
+│       └── views.py                 # Logika Monolit Produk, Order & Model ML
 │
 ├── jmeter/                          # UJI PERFORMA JMETER
 │   └── test.jmx                     # Skrip Pengujian Performa JMeter
@@ -46,9 +71,9 @@ tugas-rpc-terdistribusi/
 
 Pastikan perangkat Anda sudah terinstall:
 - **Node.js**: v18.x atau versi lebih baru
-- **Python**: v3.10 atau versi lebih baru
+- **Python**: v3.10 atau versi lebih baru (`scikit-learn`, `numpy`, `fastapi`, `uvicorn`, `django`)
 - **PHP**: v8.0 atau versi lebih baru
-- **Apache JMeter**: v5.x (opsional, untuk uji performa)
+- **Apache JMeter**: v5.x (untuk uji performa)
 
 ---
 
@@ -58,10 +83,10 @@ Pastikan perangkat Anda sudah terinstall:
 
 Buka 4 terminal PowerShell/Command Prompt secara terpisah:
 
-#### Terminal 1: Service Produk (Python FastAPI — Port 5001)
+#### Terminal 1: Service Produk (Python FastAPI + ML — Port 5001)
 ```powershell
 cd "web1-distributed\service-produk"
-python -m pip install -r requirements.txt
+python -m pip install -r requirements.txt scikit-learn numpy
 python main.py
 ```
 
@@ -88,13 +113,13 @@ cmd /c "npm run dev"
 
 ---
 
-### 2. Menjalankan Web 2 (Monolit Django — Port 8001)
+### 2. Menjalankan Web 2 (Monolit Django + ML — Port 8001)
 
 Buka 1 terminal terpisah:
 
 ```powershell
 cd "web2-monolith"
-python -m pip install django
+python -m pip install django scikit-learn numpy
 python manage.py runserver 8001
 ```
 > **Akses Frontend Web 2:** Buka browser di [http://localhost:8001](http://localhost:8001)
@@ -103,82 +128,54 @@ python manage.py runserver 8001
 
 ## 🧪 Contoh Pengujian API (cURL / PowerShell)
 
-Seluruh endpoint Gateway (Web 1 :8000) dan Monolit (Web 2 :8001) mendukung format request/response yang **identik**.
-
 ### 1. GET Daftar Produk
 ```powershell
 curl.exe -s http://localhost:8000/api/produk
 ```
-**Respon Sukses:**
-```json
-[
-  {"id":1,"nama":"Kopi","harga":15000,"stok":50},
-  {"id":2,"nama":"Teh","harga":10000,"stok":80},
-  {"id":3,"nama":"Susu","harga":12000,"stok":30}
-]
-```
 
-### 2. GET Detail Produk Berdasarkan ID
+### 2. GET Rekomendasi Produk Serupa (Machine Learning - Cosine Similarity)
 ```powershell
-curl.exe -s http://localhost:8000/api/produk/1
+curl.exe -s http://localhost:8000/api/produk/rekomendasi/1
+```
+**Respon JSON:**
+```json
+{
+  "produk_asal": "Kopi",
+  "metode_ml": "Cosine Similarity (Content-Based Filtering)",
+  "rekomendasi": [
+    {"id": 2, "nama": "Teh", "harga": 10000, "similarity_score": 1.0},
+    {"id": 3, "nama": "Susu", "harga": 12000, "similarity_score": 1.0}
+  ]
+}
 ```
 
-### 3. POST Order Synchronous (`/api/order/sync`)
-*Proses menunda 200ms (blocking) lalu mengembalikan objek order.*
+### 3. POST Prediksi Diskon Dinamis (Machine Learning - Linear Regression)
+```powershell
+curl.exe -s -X POST http://localhost:8000/api/produk/prediksi-diskon -H "Content-Type: application/json" -d "{\"jumlah\": 10}"
+```
+**Respon JSON:**
+```json
+{
+  "jumlah_beli": 10,
+  "metode_ml": "Linear Regression (Estimasi Diskon Dinamis)",
+  "diskon_persen": 7.15
+}
+```
+
+### 4. POST Order Synchronous (`/api/order/sync`)
 ```powershell
 curl.exe -s -X POST http://localhost:8000/api/order/sync -H "Content-Type: application/json" -d "{\"id_produk\": 1, \"jumlah\": 2}"
 ```
-**Respon Sukses:**
-```json
-{"id":1,"id_produk":1,"jumlah":2,"total":30000}
-```
 
-### 4. POST Order Asynchronous (`/api/order/async`)
-* Gateway langsung membalas **202 Accepted** + `jobId`.
+### 5. POST Order Asynchronous (`/api/order/async`)
 ```powershell
 curl.exe -s -X POST http://localhost:8000/api/order/async -H "Content-Type: application/json" -d "{\"id_produk\": 2, \"jumlah\": 3}"
 ```
-**Respon Sukses (202 Accepted):**
-```json
-{
-  "jobId": "job_1790602767645_72",
-  "status": "pending",
-  "message": "Order sedang diproses di latar belakang"
-}
-```
 
-### 5. GET Status Async Job (`/api/order/status/:jobId`)
+### 6. GET Status Async Job (`/api/order/status/:jobId`)
 ```powershell
 curl.exe -s http://localhost:8000/api/order/status/job_1790602767645_72
 ```
-**Respon Selesai:**
-```json
-{
-  "jobId": "job_1790602767645_72",
-  "status": "done",
-  "result": {
-    "id": 2,
-    "id_produk": 2,
-    "jumlah": 3,
-    "total": 30000
-  }
-}
-```
-
-### 6. GET Daftar Order
-```powershell
-curl.exe -s http://localhost:8000/api/order
-```
-
-### 7. Uji Error Handling Standar JSON-RPC / HTTP
-- **Error `-32000` (Stok Tidak Cukup -> HTTP 409 Conflict):**
-  ```powershell
-  curl.exe -i -X POST http://localhost:8000/api/order/sync -H "Content-Type: application/json" -d "{\"id_produk\": 3, \"jumlah\": 999}"
-  ```
-- **Error `-32602` (Produk Tidak Ada -> HTTP 404 Not Found):**
-  ```powershell
-  curl.exe -i -X POST http://localhost:8000/api/order/sync -H "Content-Type: application/json" -d "{\"id_produk\": 999, \"jumlah\": 1}"
-  ```
 
 ---
 
@@ -186,7 +183,7 @@ curl.exe -s http://localhost:8000/api/order
 
 File test plan JMeter tersimpan di [`jmeter/test.jmx`](file:///d:/Backup%20Data%20C/Downloads/Documents/Semester%205/Sistem%20Terdistribusi/tugas-rpc-terdistribusi/jmeter/test.jmx).
 
-### Perintah Menjalankan JMeter CLI & Hasilkan Laporan HTML
+### Perintah Menjalankan JMeter CLI:
 ```powershell
 jmeter -n -t "jmeter\test.jmx" -l "jmeter\results.jtl" -e -o "jmeter\report"
 ```
@@ -212,7 +209,7 @@ jmeter -n -t "jmeter\test.jmx" -l "jmeter\results.jtl" -e -o "jmeter\report"
 
 ## 📖 Spesifikasi JSON-RPC 2.0 & Error Code
 
- Format Request JSON-RPC 2.0:
+Format Request JSON-RPC 2.0:
 ```json
 {
   "jsonrpc": "2.0",
@@ -222,20 +219,11 @@ jmeter -n -t "jmeter\test.jmx" -l "jmeter\results.jtl" -e -o "jmeter\report"
 }
 ```
 
- Format Response Sukses:
+Format Response Sukses:
 ```json
 {
   "jsonrpc": "2.0",
   "result": { "id": 1, "nama": "Kopi", "harga": 15000, "stok": 50 },
-  "id": 1
-}
-```
-
- Format Response Error:
-```json
-{
-  "jsonrpc": "2.0",
-  "error": { "code": -32602, "message": "params salah/tidak ditemukan" },
   "id": 1
 }
 ```
