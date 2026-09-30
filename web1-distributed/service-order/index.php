@@ -44,9 +44,8 @@ function sendJsonRpcResult($result, $id = null) {
     exit();
 }
 
-// Fungsi komunikasi JSON-RPC HTTP POST ke Python Service Produk (:5001/rpc)
 function callPythonService($method, $params) {
-    $url = "http://localhost:5001/rpc";
+    $url = "http://127.0.0.1:5001/rpc";
     $payload = json_encode([
         "jsonrpc" => "2.0",
         "method" => $method,
@@ -93,7 +92,7 @@ if ($method === "listOrder") {
     sendJsonRpcResult($orders, $id);
 }
 
-// Helper logika pemesanan (validasi stok ke Python, hitung total, simpan order)
+// Helper logika pemesanan dengan potongan Diskon ML (Linear Regression)
 function processOrder($params, $id, $storageFile) {
     if (!isset($params['id_produk']) || !isset($params['jumlah'])) {
         sendJsonRpcError(-32602, "params salah/tidak ditemukan", $id);
@@ -116,7 +115,6 @@ function processOrder($params, $id, $storageFile) {
         sendJsonRpcError(-32602, "Service Produk tidak dapat dijangkau", $id);
     }
 
-    // Jika Python mengembalikan error (misal: -32000 stok tidak cukup / -32602 produk tidak ada)
     if (isset($pythonResponse['error'])) {
         $errCode = $pythonResponse['error']['code'] ?? -32602;
         $errMsg = $pythonResponse['error']['message'] ?? "Gagal memproses order";
@@ -124,13 +122,19 @@ function processOrder($params, $id, $storageFile) {
     }
 
     $produk = $pythonResponse['result'];
-    $total = $produk['harga'] * $jumlah;
+    $subtotal = $produk['harga'] * $jumlah;
+    $diskon_persen = isset($produk['diskon_persen']) ? (float)$produk['diskon_persen'] : 0.0;
+    $total_diskon = round($subtotal * ($diskon_persen / 100.0));
+    $total = $subtotal - $total_diskon;
 
     $orders = getOrders($storageFile);
     $newOrder = [
         "id" => count($orders) + 1,
         "id_produk" => $id_produk,
         "jumlah" => $jumlah,
+        "subtotal" => $subtotal,
+        "diskon_persen" => $diskon_persen,
+        "total_diskon" => $total_diskon,
         "total" => $total
     ];
 
@@ -140,16 +144,13 @@ function processOrder($params, $id, $storageFile) {
     sendJsonRpcResult($newOrder, $id);
 }
 
-// Method 2: buatOrder
 if ($method === "buatOrder") {
     processOrder($params, $id, $storageFile);
 }
 
-// Method 3: buatOrderSync (sleep 200ms lalu buat order)
 if ($method === "buatOrderSync") {
-    usleep(200000); // Delay 200ms (200,000 microsecond)
+    usleep(200000);
     processOrder($params, $id, $storageFile);
 }
 
-// Method tidak ditemukan
 sendJsonRpcError(-32601, "method tidak ada", $id);

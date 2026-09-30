@@ -23,6 +23,10 @@ y_train = np.array([0, 2, 5, 10, 15, 25])
 ml_diskon_model = LinearRegression()
 ml_diskon_model.fit(X_train, y_train)
 
+def calculate_ml_discount(jumlah):
+    pred_diskon = ml_diskon_model.predict(np.array([[jumlah]]))[0]
+    return max(0, min(30, round(float(pred_diskon), 2)))
+
 def index_view(request):
     return render(request, 'index.html', {
         'produk_list': produk_db,
@@ -38,7 +42,6 @@ def get_produk_by_id(request, produk_id):
         return JsonResponse({"code": -32602, "message": "Produk tidak ditemukan"}, status=404)
     return JsonResponse(prod)
 
-# ML Feature 1: Rekomendasi Produk (Cosine Similarity)
 def get_rekomendasi_produk(request, produk_id):
     target_prod = next((p for p in produk_db if p["id"] == int(produk_id)), None)
     if not target_prod:
@@ -65,7 +68,6 @@ def get_rekomendasi_produk(request, produk_id):
         "rekomendasi": rekomendasi
     })
 
-# ML Feature 2: Prediksi Diskon Dinamis (Linear Regression)
 @csrf_exempt
 def predict_diskon(request):
     if request.method != 'POST':
@@ -76,9 +78,7 @@ def predict_diskon(request):
     except Exception:
         jumlah = 1
 
-    pred_diskon = ml_diskon_model.predict(np.array([[jumlah]]))[0]
-    diskon_persen = max(0, min(30, round(float(pred_diskon), 2)))
-
+    diskon_persen = calculate_ml_discount(jumlah)
     return JsonResponse({
         "jumlah_beli": jumlah,
         "metode_ml": "Linear Regression (Estimasi Diskon Dinamis)",
@@ -96,11 +96,19 @@ def _process_order(id_produk, jumlah):
         return None, {"code": -32000, "message": "stok tidak cukup"}, 409
 
     prod["stok"] -= int(jumlah)
+    subtotal = prod["harga"] * int(jumlah)
+    diskon_persen = calculate_ml_discount(jumlah)
+    total_diskon = round(subtotal * (diskon_persen / 100.0))
+    total = subtotal - total_diskon
+
     new_order = {
         "id": len(orders_db) + 1,
         "id_produk": prod["id"],
         "jumlah": int(jumlah),
-        "total": prod["harga"] * int(jumlah)
+        "subtotal": subtotal,
+        "diskon_persen": diskon_persen,
+        "total_diskon": total_diskon,
+        "total": total
     }
     orders_db.append(new_order)
     return new_order, None, 200

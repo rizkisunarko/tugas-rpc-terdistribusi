@@ -2,13 +2,10 @@
     {
         "id": 1,
         "id_produk": 1,
-        "jumlah": 2,
-        "total": 30000
-    },
-    {
-        "id": 2,
-        "id_produk": 2,
-        "jumlah": 3,
-        "total": 30000
+        "jumlah": 10,
+        "subtotal": 150000,
+        "diskon_persen": 7.15,
+        "total_diskon": 10725,
+        "total": 139275
     }
 ]

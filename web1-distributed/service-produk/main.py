@@ -23,11 +23,14 @@ produk_db = [
 ]
 
 # Machine Learning Model 1: Training Model Linear Regression untuk Prediksi Diskon Otomatis
-# X = [Jumlah Beli], y = [Persentase Diskon %]
 X_train = np.array([[1], [3], [5], [10], [20], [50]])
 y_train = np.array([0, 2, 5, 10, 15, 25])
 ml_diskon_model = LinearRegression()
 ml_diskon_model.fit(X_train, y_train)
+
+def calculate_ml_discount(jumlah):
+    pred_diskon = ml_diskon_model.predict(np.array([[jumlah]]))[0]
+    return max(0, min(30, round(float(pred_diskon), 2)))
 
 def make_jsonrpc_response(result=None, error=None, req_id=None):
     response = {"jsonrpc": "2.0", "id": req_id}
@@ -78,7 +81,7 @@ async def rpc_handler(request: Request):
             )
         return make_jsonrpc_response(result=produk, req_id=req_id)
 
-    # Method 3: kurangiStok
+    # Method 3: kurangiStok (Menghitung diskon ML Linear Regression otomatis)
     elif method == "kurangiStok":
         if not isinstance(params, dict) or "id" not in params or "jumlah" not in params:
             return make_jsonrpc_response(
@@ -99,7 +102,11 @@ async def rpc_handler(request: Request):
                 req_id=req_id
             )
         produk["stok"] -= jumlah
-        return make_jsonrpc_response(result=produk, req_id=req_id)
+        diskon_persen = calculate_ml_discount(jumlah)
+        
+        result_payload = dict(produk)
+        result_payload["diskon_persen"] = diskon_persen
+        return make_jsonrpc_response(result=result_payload, req_id=req_id)
 
     # Method 4 (ML): rekomendasiProduk (Cosine Similarity)
     elif method == "rekomendasiProduk":
@@ -116,12 +123,10 @@ async def rpc_handler(request: Request):
                 req_id=req_id
             )
 
-        # Hitung Cosine Similarity antar vektor fitur produk
         features = np.array([p["kategori_vec"] for p in produk_db])
         target_vec = np.array([target_prod["kategori_vec"]])
         sim_scores = cosine_similarity(target_vec, features)[0]
 
-        # Ambil produk teratas selain produk itu sendiri
         rekomendasi = []
         for idx, score in enumerate(sim_scores):
             if produk_db[idx]["id"] != prod_id:
@@ -142,9 +147,7 @@ async def rpc_handler(request: Request):
     # Method 5 (ML): prediksiDiskon (Linear Regression)
     elif method == "prediksiDiskon":
         jumlah = int(params.get("jumlah", 1))
-        # Prediksi diskon persentase menggunakan model Linear Regression
-        pred_diskon = ml_diskon_model.predict(np.array([[jumlah]]))[0]
-        diskon_persen = max(0, min(30, round(float(pred_diskon), 2))) # Limit max 30%
+        diskon_persen = calculate_ml_discount(jumlah)
 
         return make_jsonrpc_response(result={
             "jumlah_beli": jumlah,

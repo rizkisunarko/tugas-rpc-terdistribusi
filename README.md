@@ -8,10 +8,78 @@ Proyek ini dibuat untuk memenuhi tugas **Mata Kuliah Sistem Terdistribusi** yang
 
 | No | Nama Mahasiswa | NIM | Peran / Pembagian Tugas |
 | :-: | :--- | :--- | :--- |
-| 1 | [Rizki Pratama Sunarko] | [240411100181] | Gateway Node.js & React UI |
-| 2 | [Mohammad Andri Firmansyah] | [240411100139] | Service Produk Python + Machine Learning |
-| 3 | [Abyan Naufal Yunianto] | [240411100178] | Service Order PHP Polos |
-| 4 | [Dien Latif Asyari] | [240411100038] | Web 2 Django Monolith & Uji JMeter |
+| 1 | Rizki Pratama Sunarko | 240411100181 | Gateway Node.js & React UI |
+| 2 | Mohammad Andri Firmansyah | 240411100139 | Service Produk Python + Machine Learning |
+| 3 | Abyan Naufal Yunianto | 240411100178 | Service Order PHP Polos |
+| 4 | Dien Latif Asyari | 240411100038 | Web 2 Django Monolith & Uji JMeter |
+
+---
+
+## 🗺️ Diagram Alur Arsitektur & Eksekusi Sistem
+
+### 1. Arsitektur Web 1 (Multi-Platform Kernel Distributed)
+```text
+  [ Client / React UI :3000 / JMeter ]
+                 │
+                 │ HTTP REST Request
+                 ▼
+     [ Node.js Express Gateway :8000 ]
+           │                     │
+           │ JSON-RPC 2.0        │ JSON-RPC 2.0
+           ▼                     ▼
+[ Python FastAPI Produk :5001 ]  [ PHP Polos Order :5002 ]
+  (In-Memory & ML Model)           (Inter-Service RPC ke :5001)
+```
+
+### 2. Sequence Diagram: Order Synchronous vs Asynchronous
+
+#### A. Order Synchronous (Blocking 200ms)
+```text
+Client            Gateway (:8000)      Order Service (:5002)     Product Service (:5001)
+  │                     │                        │                           │
+  │── POST /order/sync ─►│                        │                           │
+  │                     │── RPC buatOrderSync ──►│                           │
+  │                     │                        │── [sleep 200ms]           │
+  │                     │                        │── RPC kurangiStok ───────►│
+  │                     │                        │◄─ Result / Error ─────────│
+  │                     │◄── Result (200 OK) ────│                           │
+  │◄── Result (200 OK) ─│                        │                           │
+```
+
+#### B. Order Asynchronous (Non-Blocking 202 Accepted + Polling)
+```text
+Client            Gateway (:8000)      Order Service (:5002)     Product Service (:5001)
+  │                     │                        │                           │
+  │── POST /order/async ─►│                        │                           │
+  │◄── 202 (jobId) ─────│ (Respon Instan 0-10ms) │                           │
+  │                     │                        │                           │
+  │ [Background Job] ───┼── RPC buatOrderSync ──►│                           │
+  │                     │                        │── [sleep 200ms]           │
+  │                     │                        │── RPC kurangiStok ───────►│
+  │                     │                        │◄─ Result / Error ─────────│
+  │                     │ (Job status: done)     │                           │
+  │                     │                        │                           │
+  │── GET /status/job ─►│                        │                           │
+  │◄── status: done ────│                        │                           │
+```
+
+---
+
+## 🧪 Daftar Skenario Pengujian & Test Cases
+
+Berikut adalah rincian seluruh aspek dan fitur yang diuji pada proyek ini:
+
+| No | Pengujian | Target Endpoint | Ekspektasi Hasil / Indikator Sukses |
+| :-: | :--- | :--- | :--- |
+| **1** | **Get Products** | `GET /api/produk` | Mengembalikan 3 item produk awal (`Kopi`, `Teh`, `Susu`) dalam JSON array. |
+| **2** | **Get Product Detail** | `GET /api/produk/:id` | Mengembalikan detail 1 produk sesuai ID yang diminta. |
+| **3** | **Order Synchronous** | `POST /api/order/sync` | Gateway menunggu delay 200ms, stok dipotong di Python, order tersimpan di PHP. |
+| **4** | **Order Asynchronous** | `POST /api/order/async` | Balasan instan HTTP 202 (`jobId`), diproses background, hasil dicek via `/status/:jobId`. |
+| **5** | **ML Rekomendasi Produk** | `GET /api/produk/rekomendasi/:id` | Mengembalikan produk serupa berdasar **Cosine Similarity** atribut produk. |
+| **6** | **ML Prediksi Diskon** | `POST /api/produk/prediksi-diskon` | Memprediksi persentase diskon dinamis berdasar kuantitas via **Linear Regression**. |
+| **7** | **Error Stok Kurang** | `POST /api/order/sync` (`jumlah: 999`) | Mengembalikan JSON-RPC Code `-32000` & status **HTTP 409 Conflict**. |
+| **8** | **Error Produk Not Found** | `POST /api/order/sync` (`id: 999`) | Mengembalikan JSON-RPC Code `-32602` & status **HTTP 404 Not Found**. |
+| **9** | **Load Testing JMeter** | `test.jmx` (10, 50, 100, 500 User) | Mengukur Latency, Throughput (req/sec), 95th Percentile, dan Error Rate. |
 
 ---
 

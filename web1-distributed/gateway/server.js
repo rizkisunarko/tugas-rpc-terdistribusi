@@ -4,8 +4,8 @@ const cors = require('cors');
 const app = express();
 const PORT = 8000;
 
-const PYTHON_SERVICE_URL = 'http://localhost:5001/rpc';
-const PHP_SERVICE_URL = 'http://localhost:5002/rpc';
+const PYTHON_SERVICE_URL = 'http://127.0.0.1:5001/rpc';
+const PHP_SERVICE_URL = 'http://127.0.0.1:5002/rpc';
 
 app.use(cors());
 app.use(express.json());
@@ -121,7 +121,11 @@ app.post('/api/order', async (req, res) => {
         if (prod.stok < jumlah) return res.status(409).json({ code: -32000, message: "stok tidak cukup" });
 
         prod.stok -= jumlah;
-        const newOrder = { id: mockOrders.length + 1, id_produk: prod.id, jumlah: parseInt(jumlah, 10), total: prod.harga * jumlah };
+        const subtotal = prod.harga * jumlah;
+        const diskon_persen = jumlah >= 10 ? 7.15 : (jumlah >= 5 ? 5.0 : 0.0);
+        const total_diskon = Math.round(subtotal * (diskon_persen / 100));
+        const total = subtotal - total_diskon;
+        const newOrder = { id: mockOrders.length + 1, id_produk: prod.id, jumlah: parseInt(jumlah, 10), subtotal, diskon_persen, total_diskon, total };
         mockOrders.push(newOrder);
         return res.json(newOrder);
     }
@@ -144,7 +148,11 @@ app.post('/api/order/sync', async (req, res) => {
         if (prod.stok < jumlah) return res.status(409).json({ code: -32000, message: "stok tidak cukup" });
 
         prod.stok -= jumlah;
-        const newOrder = { id: mockOrders.length + 1, id_produk: prod.id, jumlah: parseInt(jumlah, 10), total: prod.harga * jumlah };
+        const subtotal = prod.harga * jumlah;
+        const diskon_persen = jumlah >= 10 ? 7.15 : (jumlah >= 5 ? 5.0 : 0.0);
+        const total_diskon = Math.round(subtotal * (diskon_persen / 100));
+        const total = subtotal - total_diskon;
+        const newOrder = { id: mockOrders.length + 1, id_produk: prod.id, jumlah: parseInt(jumlah, 10), subtotal, diskon_persen, total_diskon, total };
         mockOrders.push(newOrder);
         return res.json(newOrder);
     }
@@ -181,7 +189,11 @@ app.post('/api/order/async', (req, res) => {
                 jobs[jobId] = { jobId, status: 'error', httpStatus: 409, error: { code: -32000, message: "stok tidak cukup" } };
             } else {
                 prod.stok -= jumlah;
-                const newOrder = { id: mockOrders.length + 1, id_produk: prod.id, jumlah: parseInt(jumlah, 10), total: prod.harga * jumlah };
+                const subtotal = prod.harga * jumlah;
+                const diskon_persen = jumlah >= 10 ? 7.15 : (jumlah >= 5 ? 5.0 : 0.0);
+                const total_diskon = Math.round(subtotal * (diskon_persen / 100));
+                const total = subtotal - total_diskon;
+                const newOrder = { id: mockOrders.length + 1, id_produk: prod.id, jumlah: parseInt(jumlah, 10), subtotal, diskon_persen, total_diskon, total };
                 mockOrders.push(newOrder);
                 jobs[jobId] = { jobId, status: 'done', result: newOrder };
             }

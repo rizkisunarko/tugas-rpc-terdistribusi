@@ -10,65 +10,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
   const [activeJob, setActiveJob] = useState(null);
-  const [mlDiskon, setMlDiskon] = useState({ persen: 0, potongan: 0, subtotal: 0, total: 0 });
-  const [rekomendasi, setRekomendasi] = useState([]);
 
   useEffect(() => {
     fetchProduk();
     fetchOrder();
   }, []);
-
-  // Hitung prediksi diskon ML otomatis setiap kali produk atau jumlah berubah
-  useEffect(() => {
-    if (produkList.length > 0) {
-      updateMlPrediction(selectedProdukId, jumlah);
-      fetchRekomendasi(selectedProdukId);
-    }
-  }, [selectedProdukId, jumlah, produkList]);
-
-  const updateMlPrediction = async (prodId, qty) => {
-    const prod = produkList.find(p => p.id === parseInt(prodId, 10));
-    if (!prod) return;
-
-    const subtotal = prod.harga * qty;
-    try {
-      const res = await fetch(`${GATEWAY_URL}/produk/prediksi-diskon`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jumlah: qty })
-      });
-      const data = await res.json();
-      const persen = data.diskon_persen || 0;
-      const potongan = Math.round(subtotal * (persen / 100));
-      setMlDiskon({
-        persen,
-        potongan,
-        subtotal,
-        total: subtotal - potongan
-      });
-    } catch {
-      const fallbackPersen = qty >= 10 ? 7.15 : (qty >= 5 ? 5.0 : (qty >= 3 ? 2.0 : 0));
-      const potongan = Math.round(subtotal * (fallbackPersen / 100));
-      setMlDiskon({
-        persen: fallbackPersen,
-        potongan,
-        subtotal,
-        total: subtotal - potongan
-      });
-    }
-  };
-
-  const fetchRekomendasi = async (prodId) => {
-    try {
-      const res = await fetch(`${GATEWAY_URL}/produk/rekomendasi/${prodId}`);
-      const data = await res.json();
-      if (data && data.rekomendasi) {
-        setRekomendasi(data.rekomendasi);
-      }
-    } catch (err) {
-      console.error('Gagal mengambil rekomendasi ML:', err);
-    }
-  };
 
   const fetchProduk = async () => {
     try {
@@ -164,7 +110,7 @@ export default function App() {
           setLoading(false);
           setStatusMessage({
             type: 'success',
-            text: `Async Order Selesai! ID: #${jobData.result.id}, Subtotal: Rp ${jobData.result.subtotal?.toLocaleString()}, Diskon ML (${jobData.result.diskon_persen}%): -Rp ${jobData.result.total_diskon?.toLocaleString()}, Total Bayar: Rp ${jobData.result.total?.toLocaleString()}`
+            text: `Async Order Selesai! ID: #${jobData.result.id}, Total Bayar: Rp ${jobData.result.total?.toLocaleString()}`
           });
           fetchProduk();
           fetchOrder();
@@ -188,7 +134,7 @@ export default function App() {
     <div className="container">
       <header className="header">
         <h1>Toko Online Mini</h1>
-        <p>Arsitektur Web 1: Node.js Express Gateway + React Vite UI + Machine Learning</p>
+        <p>Arsitektur Web 1: Node.js Express Gateway + React Vite UI</p>
         <div className="arch-badge">
           <span>React (Frontend :3000)</span> &rarr;
           <span>Express Gateway (:8000)</span> &rarr;
@@ -229,22 +175,6 @@ export default function App() {
               </tbody>
             </table>
           </div>
-
-          {/* Rekomendasi ML */}
-          {rekomendasi.length > 0 && (
-            <div style={{ marginTop: '1.25rem', padding: '0.75rem', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px', border: '1px solid rgba(99, 102, 241, 0.25)' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a5b4fc', marginBottom: '0.4rem' }}>
-                🤖 Rekomendasi Produk Serupa (ML - Cosine Similarity):
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {rekomendasi.map(r => (
-                  <span key={r.id} style={{ fontSize: '0.8rem', padding: '0.2rem 0.5rem', background: 'rgba(15, 23, 42, 0.7)', borderRadius: '6px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                    {r.nama} (Kemiripan: {(r.similarity_score * 100).toFixed(0)}%)
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Form Buat Order */}
@@ -274,19 +204,6 @@ export default function App() {
               value={jumlah}
               onChange={(e) => setJumlah(parseInt(e.target.value, 10) || 1)}
             />
-          </div>
-
-          {/* Box Prediksi Diskon Machine Learning */}
-          <div style={{ margin: '1rem 0', padding: '0.85rem', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '8px' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#34d399', marginBottom: '0.5rem' }}>
-              🤖 Estimasi Diskon Dinamis (ML - Linear Regression):
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.85rem' }}>
-              <div>Subtotal: <strong>Rp {mlDiskon.subtotal?.toLocaleString()}</strong></div>
-              <div>Diskon ML: <strong style={{ color: '#fbbf24' }}>{mlDiskon.persen}%</strong></div>
-              <div>Hemat: <strong style={{ color: '#f43f5e' }}>-Rp {mlDiskon.potongan?.toLocaleString()}</strong></div>
-              <div>Total Bayar: <strong style={{ color: '#34d399' }}>Rp {mlDiskon.total?.toLocaleString()}</strong></div>
-            </div>
           </div>
 
           <div className="btn-group">
